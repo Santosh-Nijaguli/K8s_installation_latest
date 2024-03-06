@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 echo "     Running script with $(whoami)"
 
@@ -10,19 +10,19 @@ echo "     STEP 1: Disabling Swap"
 echo "            -> Done"
 
 echo "     STEP 2: Adding Kernel parameters "
-        sudo tee /etc/modules-load.d/containerd.conf <<EOF
-        overlay
-        br_netfilter
-        EOF
+sudo tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
 
-        sudo modprobe overlay
-        sudo modprobe br_netfilter
+sudo modprobe overlay
+sudo modprobe br_netfilter
 echo "     Configure the critical kernel parameters for Kubernetes"
-        sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
-        net.bridge.bridge-nf-call-ip6tables = 1
-        net.bridge.bridge-nf-call-iptables = 1
-        net.ipv4.ip_forward = 1
-        EOF
+sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
 
         sudo sysctl --system
 
@@ -48,8 +48,9 @@ echo "  Restarting & enabling containerd services"
 
 
 echo "  STEP 5:Add Apt Repository for Kubernetes"
-        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/kubernetes-xenial.gpg
-        sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
 
 echo "     STEP 6: Updating apt"
         apt-get update 1>/dev/null
