@@ -9,36 +9,61 @@ echo "     STEP 1: Disabling Swap"
         sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 echo "            -> Done"
 
-echo "     STEP 2: Installing apt-transport-https"
-        apt-get install -y apt-transport-https 1>/dev/null
-        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add
-        echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list
-echo "            -> Done"
+echo "     STEP 2: Adding Kernel parameters "
+        sudo tee /etc/modules-load.d/containerd.conf <<EOF
+        overlay
+        br_netfilter
+        EOF
 
-echo "     STEP 3: Updating apt"
+        sudo modprobe overlay
+        sudo modprobe br_netfilter
+echo "     Configure the critical kernel parameters for Kubernetes"
+        sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+        net.bridge.bridge-nf-call-ip6tables = 1
+        net.bridge.bridge-nf-call-iptables = 1
+        net.ipv4.ip_forward = 1
+        EOF
+
+        sudo sysctl --system
+
+echo "  STEP 3: Install Containerd Runtime"
+        sudo apt install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates
+
+echo "  Enabling the Docker repository"
+        sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/docker.gpg
+        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+        sudo apt update 1>/dev/null
+
+echo "  Updating the package list and install containerd"
+        sudo apt install -y containerd.io
+
+echo "     STEP 4:Configure containerd to start using systemd as cgroup"
+        containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
+        sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
+
+echo "  Restarting & enabling containerd services"
+        sudo systemctl restart containerd
+        sudo systemctl enable containerd
+
+
+echo "  STEP 5:Add Apt Repository for Kubernetes"
+        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/kubernetes-xenial.gpg
+        sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+
+echo "     STEP 6: Updating apt"
         apt-get update 1>/dev/null
-echo "            -> Updated ...."
 
-echo "     STEP 4: Starting Docker Deamon and enable Service....."
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sh get-docker.sh 1>/dev/null
-
-echo "     STEP 5: C-Group Error Fix and Restarting Components"
-        echo "{ \n \"exec-opts\": [\"native.cgroupdriver=systemd\"]\n}" > /etc/docker/daemon.json
-        systemctl daemon-reload
-        systemctl restart docker
-echo "            -> Done"
-
-echo "     STEP 6: Installing kubenetes master components"
+echo "     STEP 7: Installing kubenetes master components"
         echo "            -> Installing kubelet"
-                apt-get install -y kubelet=1.23.8-00 1>/dev/null
+                apt-get install -y kubelet 1>/dev/null
         echo "            -> Installing kubeadm"
-                apt-get install -y kubeadm=1.23.8-00 1>/dev/null
+                apt-get install -y kubeadm 1>/dev/null
         echo "            -> Installing kubectl"
-                apt-get install -y kubectl=1.23.8-00 1>/dev/null
+                apt-get install -y kubectl 1>/dev/null
         echo "            -> Installing kubernetes-cni"
                 apt-get install -y kubernetes-cni 1>/dev/null
-     
+
 
 echo "-----------------------------------------------------------"
 echo "  Kubernetes node template is now created "
